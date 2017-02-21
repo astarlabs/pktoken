@@ -28,7 +28,7 @@ func GenerateNewKeyPair() (privateKey *big.Int, publicKeyX *big.Int, publicKeyY 
 }
 
 // SignMessage ...
-func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int, message string) (string, error) {
+func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int) (string, error) {
 
 	publicKey := ecdsa.PublicKey{
 		Curve: elliptic.P256(),
@@ -41,7 +41,6 @@ func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int,
 	uuid, _ := uuidLib.GenerateUUID()
 	claims := &jwt.StandardClaims{
 		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
-		Subject:   message,
 		Id:        uuid,
 	}
 
@@ -52,7 +51,7 @@ func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int,
 }
 
 // ValidateSignedMessage ...
-func ValidateSignedMessage(publicKeyX *big.Int, publicKeyY *big.Int, message string, signed string) (bool, error) {
+func ValidateSignedMessage(publicKeyX *big.Int, publicKeyY *big.Int, signed string) (bool, error) {
 
 	publicKey := ecdsa.PublicKey{
 		Curve: elliptic.P256(),
@@ -68,7 +67,7 @@ func ValidateSignedMessage(publicKeyX *big.Int, publicKeyY *big.Int, message str
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if claims.VerifyExpiresAt(time.Now().Unix(), true) && claims["sub"] == message {
+		if claims.VerifyExpiresAt(time.Now().Unix(), true) {
 			return true, nil
 		}
 	}
