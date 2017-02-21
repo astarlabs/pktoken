@@ -7,28 +7,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"time"
+
 	jwt "github.com/dgrijalva/jwt-go"
+	uuidLib "github.com/hashicorp/go-uuid"
 )
-
-/*func main() {
-
-	priv, pubX, pubY := GenerateNewKeyPair()
-
-	signed, err := SignMessage(priv, pubX, pubY, "hello")
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	ok, err := ValidateSignedMessage(pubX, pubY, "hello", signed)
-
-	if !ok {
-		fmt.Println(err)
-	} else {
-		fmt.Println("sucesso")
-	}
-
-}*/
 
 // GenerateNewKeyPair ...
 func GenerateNewKeyPair() (privateKey *big.Int, publicKeyX *big.Int, publicKeyY *big.Int) {
@@ -55,8 +38,11 @@ func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int,
 
 	privateKey := ecdsa.PrivateKey{D: privateKeyD, PublicKey: publicKey}
 
-	claims := &jwt.MapClaims{
-		"message": message,
+	uuid, _ := uuidLib.GenerateUUID()
+	claims := &jwt.StandardClaims{
+		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
+		Subject:   message,
+		Id:        uuid,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
@@ -82,7 +68,7 @@ func ValidateSignedMessage(publicKeyX *big.Int, publicKeyY *big.Int, message str
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if claims["message"] == message {
+		if claims.VerifyExpiresAt(time.Now().Unix(), true) && claims["sub"] == message {
 			return true, nil
 		}
 	}

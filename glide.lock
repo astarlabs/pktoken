@@ -1,6 +1,8 @@
-hash: 859578603c40676be09c79a278fe8fb0362ef5e1cd091be9d3241f8f737251f3
-updated: 2017-02-20T19:36:37.411206681-03:00
+hash: 803b905d0330851c24497125e708574126c62ed9e42f3e995e3a943c8e412fdc
+updated: 2017-02-21T15:00:02.527211931-03:00
 imports:
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+- name: github.com/hashicorp/go-uuid
+  version: 64130c7a86d732268a38cb04cfbaf0cc987fda98
 testImports: []
