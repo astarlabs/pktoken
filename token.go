@@ -5,38 +5,68 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
-	"math/big"
 
 	"time"
+
+	"crypto/x509"
+
+	"encoding/hex"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	uuidLib "github.com/hashicorp/go-uuid"
 )
 
 // GenerateNewKeyPair ...
-func GenerateNewKeyPair() (privateKey *big.Int, publicKeyX *big.Int, publicKeyY *big.Int) {
+func GenerateNewKeyPair() (privateKey string, publicKey string, err error) {
 
 	generatedPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
 	if err != nil {
 		fmt.Println(err)
-		return nil, nil, nil
+		return "", "", err
 	}
 
-	return generatedPrivateKey.D, generatedPrivateKey.PublicKey.X, generatedPrivateKey.PublicKey.Y
+	marshalPrivateKey, err := x509.MarshalECPrivateKey(generatedPrivateKey)
+
+	if err != nil {
+		fmt.Println(err)
+		return "", "", err
+	}
+
+	encodedPrivateKey := hex.EncodeToString(marshalPrivateKey)
+
+	publicKeyInterface := &generatedPrivateKey.PublicKey
+	marshalPublicKey, err := x509.MarshalPKIXPublicKey(publicKeyInterface)
+
+	if err != nil {
+		fmt.Println(err)
+		return "", "", err
+	}
+
+	encodedPublicKey := hex.EncodeToString(marshalPublicKey)
+
+	fmt.Println(encodedPublicKey)
+
+	return encodedPrivateKey, encodedPublicKey, nil
 
 }
 
 // SignMessage ...
-func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int) (string, error) {
+func SignMessage(privateKey string) (string, error) {
 
-	publicKey := ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     publicKeyX,
-		Y:     publicKeyY,
+	decodedPrivateKey, err := hex.DecodeString(privateKey)
+
+	if err != nil {
+		fmt.Println(err)
+		return "", err
 	}
 
-	privateKey := ecdsa.PrivateKey{D: privateKeyD, PublicKey: publicKey}
+	privateKeyInterface, err := x509.ParseECPrivateKey(decodedPrivateKey)
+
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
 
 	uuid, _ := uuidLib.GenerateUUID()
 	claims := &jwt.StandardClaims{
@@ -46,24 +76,32 @@ func SignMessage(privateKeyD *big.Int, publicKeyX *big.Int, publicKeyY *big.Int)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 
-	return token.SignedString(&privateKey)
+	return token.SignedString(privateKeyInterface)
 
 }
 
 // ValidateSignedMessage ...
-func ValidateSignedMessage(publicKeyX *big.Int, publicKeyY *big.Int, signed string) (bool, error) {
+func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 
-	publicKey := ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     publicKeyX,
-		Y:     publicKeyY,
+	decodedPublicKey, err := hex.DecodeString(publicKey)
+
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+
+	publicKeyInterface, err := x509.ParsePKIXPublicKey(decodedPublicKey)
+
+	if err != nil {
+		fmt.Println(err)
+		return false, err
 	}
 
 	token, err := jwt.Parse(signed, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-		return &publicKey, nil
+		return publicKeyInterface, nil
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
