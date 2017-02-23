@@ -104,10 +104,17 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 		return publicKeyInterface, nil
 	})
 
+	if err != nil {
+		return false, err
+	}
+
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if claims.VerifyExpiresAt(time.Now().Unix(), true) {
-			return true, nil
+		if claims != nil {
+			if claims.VerifyExpiresAt(time.Now().Unix(), true) {
+				return true, nil
+			}
 		}
+		return false, nil
 	}
 
 	return false, err
