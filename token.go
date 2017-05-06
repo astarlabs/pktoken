@@ -1,14 +1,15 @@
-package pktoken
+package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"errors"
 	"fmt"
 
 	"time"
 
-	"crypto/x509"
+	"encoding/pem"
 
 	"encoding/hex"
 
@@ -19,49 +20,55 @@ import (
 // GenerateNewKeyPair ...
 func GenerateNewKeyPair() (privateKey string, publicKey string, err error) {
 
-	generatedPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		fmt.Println(err)
 		return "", "", err
 	}
 
-	marshalPrivateKey, err := x509.MarshalECPrivateKey(generatedPrivateKey)
-
+	err = priv.Validate()
 	if err != nil {
-		fmt.Println(err)
-		return "", "", err
+		fmt.Println("Validation failed.", err)
 	}
 
-	encodedPrivateKey := hex.EncodeToString(marshalPrivateKey)
+	privDer := x509.MarshalPKCS1PrivateKey(priv)
 
-	publicKeyInterface := &generatedPrivateKey.PublicKey
-	marshalPublicKey, err := x509.MarshalPKIXPublicKey(publicKeyInterface)
-
-	if err != nil {
-		fmt.Println(err)
-		return "", "", err
+	privblock := pem.Block{
+		Type:    "RSA PRIVATE KEY",
+		Headers: nil,
+		Bytes:   privDer,
 	}
 
-	encodedPublicKey := hex.EncodeToString(marshalPublicKey)
+	privPem := string(pem.EncodeToMemory(&privblock))
 
-	fmt.Println(encodedPublicKey)
+	pub := priv.PublicKey
+	pubDer, err := x509.MarshalPKIXPublicKey(&pub)
+	if err != nil {
+		fmt.Println("Failed to get der format for PublicKey.", err)
+		return
+	}
 
-	return encodedPrivateKey, encodedPublicKey, nil
+	pubBlock := pem.Block{
+		Type:    "RSA PUBLIC KEY",
+		Headers: nil,
+		Bytes:   pubDer,
+	}
+	pubPem := string(pem.EncodeToMemory(&pubBlock))
+
+	return privPem, hex.EncodeToString([]byte(pubPem)), err
 
 }
 
 // SignMessage ...
 func SignMessage(privateKey string) (string, error) {
 
-	decodedPrivateKey, err := hex.DecodeString(privateKey)
+	block, _ := pem.Decode([]byte(privateKey))
 
-	if err != nil {
-		fmt.Println(err)
-		return "", err
+	if block == nil || block.Type != "RSA PRIVATE KEY" {
+		return "", errors.New("failed to decode PEM block containing private key")
 	}
 
-	privateKeyInterface, err := x509.ParseECPrivateKey(decodedPrivateKey)
+	privateKeyInterface, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 
 	if err != nil {
 		fmt.Println(err)
@@ -74,7 +81,7 @@ func SignMessage(privateKey string) (string, error) {
 		Id:        uuid,
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	return token.SignedString(privateKeyInterface)
 
@@ -83,14 +90,15 @@ func SignMessage(privateKey string) (string, error) {
 // ValidateSignedMessage ...
 func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 
-	decodedPublicKey, err := hex.DecodeString(publicKey)
+	eta, _ := hex.DecodeString(publicKey)
 
-	if err != nil {
-		fmt.Println(err)
-		return false, err
+	block, _ := pem.Decode(eta)
+
+	if block == nil || block.Type != "RSA PUBLIC KEY" {
+		return false, errors.New("failed to decode PEM block containing public key")
 	}
 
-	publicKeyInterface, err := x509.ParsePKIXPublicKey(decodedPublicKey)
+	publicKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
 
 	if err != nil {
 		fmt.Println(err)
@@ -98,7 +106,7 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 	}
 
 	token, err := jwt.Parse(signed, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
 		return publicKeyInterface, nil

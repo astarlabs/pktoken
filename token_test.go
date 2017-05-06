@@ -1,4 +1,4 @@
-package pktoken
+package main
 
 import (
 	"testing"
