@@ -1,4 +1,4 @@
-package main
+package pktoken
 
 import (
 	"crypto/rand"
@@ -15,6 +15,11 @@ import (
 
 	jwt "github.com/dgrijalva/jwt-go"
 	uuidLib "github.com/hashicorp/go-uuid"
+)
+
+const (
+	privateKeyHeader = "RSA PRIVATE KEY"
+	publicKeyHeader  = "RSA PUBLIC KEY"
 )
 
 // GenerateNewKeyPair ...
@@ -34,7 +39,7 @@ func GenerateNewKeyPair() (privateKey string, publicKey string, err error) {
 	privDer := x509.MarshalPKCS1PrivateKey(priv)
 
 	privblock := pem.Block{
-		Type:    "RSA PRIVATE KEY",
+		Type:    privateKeyHeader,
 		Headers: nil,
 		Bytes:   privDer,
 	}
@@ -49,22 +54,29 @@ func GenerateNewKeyPair() (privateKey string, publicKey string, err error) {
 	}
 
 	pubBlock := pem.Block{
-		Type:    "RSA PUBLIC KEY",
+		Type:    publicKeyHeader,
 		Headers: nil,
 		Bytes:   pubDer,
 	}
 	pubPem := string(pem.EncodeToMemory(&pubBlock))
 
-	return privPem, hex.EncodeToString([]byte(pubPem)), err
+	return hex.EncodeToString([]byte(privPem)), hex.EncodeToString([]byte(pubPem)), err
 
 }
 
 // SignMessage ...
 func SignMessage(privateKey string) (string, error) {
 
-	block, _ := pem.Decode([]byte(privateKey))
+	hexDecoded, err := hex.DecodeString(privateKey)
 
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	block, _ := pem.Decode(hexDecoded)
+
+	if block == nil || block.Type != privateKeyHeader {
 		return "", errors.New("failed to decode PEM block containing private key")
 	}
 
@@ -90,11 +102,16 @@ func SignMessage(privateKey string) (string, error) {
 // ValidateSignedMessage ...
 func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 
-	eta, _ := hex.DecodeString(publicKey)
+	hexDecoded, err := hex.DecodeString(publicKey)
 
-	block, _ := pem.Decode(eta)
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
 
-	if block == nil || block.Type != "RSA PUBLIC KEY" {
+	block, _ := pem.Decode(hexDecoded)
+
+	if block == nil || block.Type != publicKeyHeader {
 		return false, errors.New("failed to decode PEM block containing public key")
 	}
 
@@ -112,19 +129,17 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 		return publicKeyInterface, nil
 	})
 
-	if err != nil {
-		return false, err
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if claims != nil {
-			if claims.VerifyExpiresAt(time.Now().Unix(), true) {
-				return true, nil
-			}
+	if token.Valid {
+		return true, nil
+	} else if ve, ok := err.(*jwt.ValidationError); ok {
+		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+			return false, errors.New("That's not even a token")
+		} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+			return false, errors.New("Timing is everything")
 		}
-		return false, nil
+		return false, errors.New("Couldn't handle this token")
+	} else {
+		return false, errors.New("Couldn't handle this token")
 	}
-
-	return false, err
 
 }
