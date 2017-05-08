@@ -89,7 +89,8 @@ func SignMessage(privateKey string) (string, error) {
 
 	uuid, _ := uuidLib.GenerateUUID()
 	claims := &jwt.StandardClaims{
-		ExpiresAt: time.Now().Add(60 * time.Second).Unix(),
+		ExpiresAt: time.Now().Add(1 * time.Minute).Unix(),
+		IssuedAt:  time.Now().Unix(),
 		Id:        uuid,
 	}
 
@@ -130,7 +131,19 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 	})
 
 	if token.Valid {
-		return true, nil
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			if claims != nil {
+				if !claims.VerifyExpiresAt(time.Now().Unix(), true) || claims.VerifyIssuedAt(time.Now().Add(-1*time.Minute).Unix(), true) {
+					return false, errors.New("Timing is everything")
+				}
+				return true, nil
+			}
+		} else {
+			return false, errors.New("Empty Claims")
+		}
+
+		return false, errors.New("Invalid Claims")
 	} else if ve, ok := err.(*jwt.ValidationError); ok {
 		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
 			return false, errors.New("That's not even a token")

@@ -23,7 +23,7 @@ func Test(t *testing.T) {
 	ok, err := ValidateSignedMessage(pub, signed)
 
 	if !ok {
-		t.Error("invalid")
+		t.Error(err)
 		t.Fail()
 	} else {
 		t.Log("valid")
