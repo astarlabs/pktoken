@@ -80,7 +80,7 @@ func SignMessage(privateKey string) (string, error) {
 		return "", errors.New("failed to decode PEM block containing private key")
 	}
 
-	privateKeyInterface, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKeyInterface, err := parsePKCS(block.Bytes)
 
 	if err != nil {
 		fmt.Println(err)
@@ -97,6 +97,21 @@ func SignMessage(privateKey string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	return token.SignedString(privateKeyInterface)
+
+}
+
+func parsePKCS(blockBytes []byte) (*rsa.PrivateKey, error) {
+
+	pkcs1, err := x509.ParsePKCS1PrivateKey(blockBytes)
+	if err == nil {
+		return pkcs1, nil
+	}
+	pkcs2, err := x509.ParsePKCS8PrivateKey(blockBytes)
+	if err == nil {
+		return pkcs2.(*rsa.PrivateKey), nil
+	}
+
+	return nil, err
 
 }
 
