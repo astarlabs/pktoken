@@ -87,9 +87,12 @@ func SignMessage(privateKey string) (string, error) {
 		return "", err
 	}
 
+	fmt.Println("exp", time.Now().Add(1*time.Minute).Unix())
+	fmt.Println("iat", time.Now().Unix())
+
 	uuid, _ := uuidLib.GenerateUUID()
 	claims := &jwt.StandardClaims{
-		ExpiresAt: time.Now().Add(1 * time.Minute).Unix(),
+		ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
 		IssuedAt:  time.Now().Unix(),
 		Id:        uuid,
 	}
@@ -165,9 +168,11 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 		} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
 			return false, errors.New("Timing is everything")
 		}
-		return false, errors.New("Couldn't handle this token")
+		return false, errors.New(ve.Error())
+		//return false, errors.New("Couldn't handle this token")
 	} else {
-		return false, errors.New("Couldn't handle this token")
+		return false, errors.New(ve.Error())
+		//return false, errors.New("Couldn't handle this token")
 	}
 
 }
