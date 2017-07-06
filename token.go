@@ -145,7 +145,7 @@ func ValidateSignedMessage(publicKey string, signed string) (bool, error) {
 		return publicKeyInterface, nil
 	})
 
-	if token.Valid {
+	if token != nil && token.Valid {
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			if claims != nil {
